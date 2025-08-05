@@ -1,4 +1,4 @@
-using FFmpeg.AutoGen;
+ï»¿using FFmpeg.AutoGen;
 using UnityEngine;
 using System.IO;
 using System;
@@ -17,31 +17,31 @@ public unsafe class FFmpegTest : MonoBehaviour
 
     public void Init()
     {
-        //×¢²áFFmpeg¿â
+        //æ³¨å†ŒFFmpegåº“
         FFmpegHelper.RegisterFFmpegBinaries();
         DynamicallyLoadedBindings.Initialize();
 
         FFmpegHelper.SetupFFmpeg();
-        //ÅäÖÃÊä³öÈÕÖ¾
+        //é…ç½®è¾“å‡ºæ—¥å¿—
         FFmpegHelper.SetupLogging();
-        //ÅäÖÃÓ²¼ş½âÂëÆ÷
+        //é…ç½®ç¡¬ä»¶è§£ç å™¨
         AVHWDeviceType deviceType = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
         FFmpegHelper.ConfigureHWDecoder(ref deviceType);
-        //½âÂë
+        //è§£ç 
         DecodeAllFramesToImages(video_path, deviceType);
     }
 
     /// <summary>
-    /// ½âÂëÊÓÆµÖ¡
+    /// è§£ç è§†é¢‘å¸§
     /// </summary>
-    /// <param name="video_path">ÊÓÆµÂ·¾¶</param>
-    /// <param name="HWDevice">Ó²±àÂëÀàĞÍ</param>
+    /// <param name="video_path">è§†é¢‘è·¯å¾„</param>
+    /// <param name="HWDevice">ç¡¬ç¼–ç ç±»å‹</param>
     private unsafe void DecodeAllFramesToImages(string url, AVHWDeviceType HWDevice)
     {
         var vsd = new VideoStreamDecoder(url, HWDevice);
 
         _vsd = vsd;
-        Debug.Log($"codec name: {vsd.CodecName}");
+        Debug.Log($"è§£ç å™¨åç§°: {vsd.CodecName}");
         var info = vsd.GetContextInfo();
         info.ToList().ForEach(x =>
         {
@@ -54,18 +54,18 @@ public unsafe class FFmpegTest : MonoBehaviour
             ? vsd.PixelFormat
             : GetHWPixelFormat(HWDevice);
 
-        //AV_PIX_FMT_YUVJ420PÄ¿Ç°ÒÑ¹ıÊ±
+        //AV_PIX_FMT_YUVJ420Pç›®å‰å·²è¿‡æ—¶
         if (sourcePixelFormat == AVPixelFormat.AV_PIX_FMT_YUVJ420P)
             sourcePixelFormat = AVPixelFormat.AV_PIX_FMT_YUV420P;
 
         var destinationSize = sourceSize;
         var destinationPixelFormat = AVPixelFormat.@AV_PIX_FMT_BGRA;
 
+        // ç”¨ swFrame ç»§ç»­åç»­å¤„ç†
         var vfc = new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat);
         _vfc = vfc;
-
         _frameNumber = 0;
-        Debug.Log($"×ÜÖ¡Êı{vsd.TotalFrames()}");
+        Debug.Log($"æ€»å¸§æ•°{vsd.TotalFrames()}");
         _isPlaying = true;
     }
 
@@ -83,20 +83,20 @@ public unsafe class FFmpegTest : MonoBehaviour
         {
             var convertedFrame = _vfc.Convert(&frame);
 
-            // TODO: ÏÔÊ¾convertedFrame
+            // TODO: æ˜¾ç¤ºconvertedFrame
             SetFrame(convertedFrame);
 
             //_frameNumber++;
             //if (_frameNumber > 1000)
             //{
             //    _isPlaying = false;
-            //    // ¿ÉÒÔÑ¡ÔñÊÍ·Å×ÊÔ´»òÖØÖÃ
+            //    // å¯ä»¥é€‰æ‹©é‡Šæ”¾èµ„æºæˆ–é‡ç½®
             //    DisposeDecoder();
             //}
         }
         else
         {
-            // ÊÓÆµ½âÂë½áÊø£¬¿ÉÒÔÖØÖÃ»òÍ£Ö¹
+            // è§†é¢‘è§£ç ç»“æŸï¼Œå¯ä»¥é‡ç½®æˆ–åœæ­¢
             Debug.Log("Video decoding finished.");
             _isPlaying = false;
             DisposeDecoder();
@@ -144,7 +144,7 @@ public unsafe class FFmpegTest : MonoBehaviour
             }
 
             _videoTexture.LoadRawTextureData(pixelData);
-            _videoTexture.Apply(false); // false = ²»ÖØ½¨ mipmap£¬¸ü¿ì
+            _videoTexture.Apply(false); // false = ä¸é‡å»º mipmapï¼Œæ›´å¿«
         }
     }
 

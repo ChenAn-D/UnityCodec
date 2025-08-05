@@ -1,8 +1,11 @@
 using FFmpeg.AutoGen;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using UnityEngine;
+using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
 
 public class VideoStreamDecoder : IDisposable
 {
@@ -39,8 +42,12 @@ public class VideoStreamDecoder : IDisposable
         //如果硬件解码器类型不为 AV_HWDEVICE_TYPE_NONE，则创建硬件设备上下文
         if (HWDeviceType != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
         {
-            ffmpeg.av_hwdevice_ctx_create(&_pCodecContext->hw_device_ctx, HWDeviceType, null, null, 0)
-                .ThrowExceptionIfError();
+            int ret = ffmpeg.av_hwdevice_ctx_create(&_pCodecContext->hw_device_ctx, HWDeviceType, null, null, 0);
+            if (ret < 0)
+            {
+                UnityEngine.Debug.LogError("初始化失败");
+                FFmpegHelper.av_strerror(ret);
+            }
         }
 
         //配置解码器上下文
@@ -144,5 +151,4 @@ public class VideoStreamDecoder : IDisposable
 
         return result;
     }
-
 }

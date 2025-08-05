@@ -63,6 +63,13 @@ public unsafe static class FFmpegHelper
         ffmpeg.av_log_set_callback(logCallback);
     }
 
+    public static string GetErrorMessage(int error)
+    {
+        var buffer = stackalloc byte[1024];
+        ffmpeg.av_strerror(error, buffer, 1024);
+        return Marshal.PtrToStringAnsi((IntPtr)buffer);
+    }
+
     /// <summary>
     /// 配置硬件解码器
     /// </summary>
@@ -73,8 +80,6 @@ public unsafe static class FFmpegHelper
         var type = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
         while ((type = ffmpeg.av_hwdevice_iterate_types(type)) != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
         {
-            AVBufferRef* hw_device_ctx = null;
-            //判断硬件是否初始化
             availableHWDecoders.Add(type);
         }
 

@@ -32,7 +32,6 @@ public class VideoFrameConverter : IDisposable
         _destinationSize = destinationSize;
         _dstPixelFormat = destinationPixelFormat;
 
-        ffmpeg.avcodec_find_decoder(AVCodecID.AV_CODEC_ID_NONE);
         //创建格式转换上下文
         _pConvertContext = ffmpeg.sws_getContext(sourceSize.Width,
              sourceSize.Height,
@@ -78,41 +77,6 @@ public class VideoFrameConverter : IDisposable
         Marshal.FreeHGlobal(_convertedFrameBufferPtr);
         //ffmpeg.av_free(_convertedFrameBufferPtr);
         ffmpeg.sws_freeContext(_pConvertContext);
-    }
-
-    /// <summary>
-    /// 用于存储解码后的音频或者视频数据。AVFrame必须通过av_frame_alloc进行分配，通过av_frame_free释放。
-    /// </summary>
-    /// <param name="sourceFrame"></param>
-    /// <returns></returns>
-    public unsafe AVFrame Convert(AVFrame sourceFrame)
-    {
-        var scale = ffmpeg.sws_scale(_pConvertContext,
-              sourceFrame.data,
-              sourceFrame.linesize,
-              0,
-              sourceFrame.height,
-              _dstData,
-              _dstLinesize);
-
-        if (scale <= 0)
-        {
-            UnityEngine.Debug.LogError("sws_scale failed");
-            return new AVFrame();
-        }
-
-        var data = new byte_ptrArray8();
-        data.UpdateFrom(_dstData);
-        var linesize = new int_array8();
-        linesize.UpdateFrom(_dstLinesize);
-
-        return new AVFrame
-        {
-            data = data,
-            linesize = linesize,
-            width = _destinationSize.Width,
-            height = _destinationSize.Height
-        };
     }
 
     public unsafe AVFrame* Convert(AVFrame* sourceFrame)
@@ -175,7 +139,5 @@ public class VideoFrameConverter : IDisposable
 
         return dstFrame;
     }
-
-
 
 }
