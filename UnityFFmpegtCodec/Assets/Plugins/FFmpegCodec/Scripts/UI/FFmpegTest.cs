@@ -32,40 +32,30 @@ public unsafe class FFmpegTest : MonoBehaviour
     }
 
     /// <summary>
-    /// 解码视频帧
+    /// 解码视频所有帧为图像（支持硬解码）
     /// </summary>
     /// <param name="video_path">视频路径</param>
     /// <param name="HWDevice">硬编码类型</param>
     private unsafe void DecodeAllFramesToImages(string url, AVHWDeviceType HWDevice)
     {
-        var vsd = new VideoStreamDecoder(url, HWDevice);
+        // 创建视频解码器实例，传入视频路径和硬件解码类型
+        _vsd = new VideoStreamDecoder(url, HWDevice);
 
-        _vsd = vsd;
-        Debug.Log($"解码器名称: {vsd.CodecName}");
-        var info = vsd.GetContextInfo();
+        Debug.Log($"解码器名称: {_vsd.CodecName}");
+
+        // 获取视频解码器上下文信息（如分辨率、格式等），并逐条打印
+        var info = _vsd.GetContextInfo();
         info.ToList().ForEach(x =>
         {
             Debug.Log($"{x.Key} = {x.Value}");
         });
 
+        _hwDevice = HWDevice;
 
-        var sourceSize = vsd.FrameSize;
-        var sourcePixelFormat = HWDevice == AVHWDeviceType.AV_HWDEVICE_TYPE_NONE
-            ? vsd.PixelFormat
-            : GetHWPixelFormat(HWDevice);
-
-        //AV_PIX_FMT_YUVJ420P目前已过时
-        if (sourcePixelFormat == AVPixelFormat.AV_PIX_FMT_YUVJ420P)
-            sourcePixelFormat = AVPixelFormat.AV_PIX_FMT_YUV420P;
-
-        var destinationSize = sourceSize;
-        var destinationPixelFormat = AVPixelFormat.@AV_PIX_FMT_BGRA;
-
-        // 用 swFrame 继续后续处理
-        var vfc = new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat);
-        _vfc = vfc;
         _frameNumber = 0;
-        Debug.Log($"总帧数{vsd.TotalFrames()}");
+        Debug.Log($"总帧数{_vsd.TotalFrames()}");
+
+        // 设置播放标记为 true，准备开始解码和播放
         _isPlaying = true;
     }
 
@@ -81,8 +71,25 @@ public unsafe class FFmpegTest : MonoBehaviour
 
         if (_vsd.TryDecodeNextFrame(out var frame))
         {
-            var convertedFrame = _vfc.Convert(&frame);
+            if (_vfc == null)
+            {
 
+                var inputPixelFormat = _hwDevice == AVHWDeviceType.AV_HWDEVICE_TYPE_NONE
+? _vsd.PixelFormat
+: GetHWPixelFormat(_hwDevice);
+                // 某些旧格式（如 YUVJ420P）已废弃，需要替换为标准格式
+                if (inputPixelFormat == AVPixelFormat.AV_PIX_FMT_YUVJ420P) inputPixelFormat = AVPixelFormat.AV_PIX_FMT_YUV420P;
+                var pCode = ffmpeg.avcodec_find_decoder_by_name(_vsd.CodecName);
+                _vfc = new VideoFrameConverter(_vsd.FrameSize, inputPixelFormat, _vsd.FrameSize, AVPixelFormat.@AV_PIX_FMT_BGRA);
+
+            }
+
+            if (_vfc == null)
+            {
+                return;
+            }
+
+            var convertedFrame = _vfc.Convert(frame);
             // TODO: 显示convertedFrame
             SetFrame(convertedFrame);
 
@@ -93,6 +100,7 @@ public unsafe class FFmpegTest : MonoBehaviour
             //    // 可以选择释放资源或重置
             //    DisposeDecoder();
             //}
+
         }
         else
         {
@@ -132,6 +140,7 @@ public unsafe class FFmpegTest : MonoBehaviour
                 if (Image != null)
                 {
                     Image.sprite = Sprite.Create(_videoTexture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
+                    Image.rectTransform.sizeDelta = new Vector2(width, height);
                 }
             }
 
@@ -144,7 +153,7 @@ public unsafe class FFmpegTest : MonoBehaviour
             }
 
             _videoTexture.LoadRawTextureData(pixelData);
-            _videoTexture.Apply(false); // false = 不重建 mipmap，更快
+            _videoTexture.Apply(false);
         }
     }
 

@@ -3,74 +3,76 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
+using Unity.VisualScripting.FullSerializer;
 /// <summary>
 /// 对帧数据进行规格形状转换
 /// </summary>
 public class VideoFrameConverter : IDisposable
 {
     private unsafe readonly IntPtr _convertedFrameBufferPtr;
-    private readonly Size _destinationSize;
-    private readonly byte_ptrArray4 _dstData;
-    private readonly int_array4 _dstLinesize;
+    private readonly Size _outputSize;
+    private readonly byte_ptrArray4 _outputData;
+    private readonly int_array4 _outputLinesize;
     private unsafe readonly SwsContext* _pConvertContext;
-    private AVPixelFormat _dstPixelFormat;
+    private AVPixelFormat _outputPixelFormat;
 
-    public unsafe VideoFrameConverter(Size sourceSize, AVPixelFormat sourcePixelFormat,
-       Size destinationSize, AVPixelFormat destinationPixelFormat)
+    public unsafe VideoFrameConverter(Size inputSize, AVPixelFormat inputPixelFormat,
+       Size outputSize, AVPixelFormat outputPixelFormat)
     {
         // 先判断参数合法性
-        if (sourceSize.Width <= 0 || sourceSize.Height <= 0)
-            throw new ArgumentException("Invalid source size");
-        if (destinationSize.Width <= 0 || destinationSize.Height <= 0)
-            throw new ArgumentException("Invalid destination size");
-        if (!Enum.IsDefined(typeof(AVPixelFormat), sourcePixelFormat))
-            throw new ArgumentException("Invalid source pixel format");
-        if (!Enum.IsDefined(typeof(AVPixelFormat), destinationPixelFormat))
-            throw new ArgumentException("Invalid destination pixel format");
+        if (inputSize.Width <= 0 || inputSize.Height <= 0)
+            throw new ArgumentException($"输入大小错误{inputSize}");
+        if (outputSize.Width <= 0 || outputSize.Height <= 0)
+            throw new ArgumentException($"输出大小错误{outputSize}");
+        if (!Enum.IsDefined(typeof(AVPixelFormat), inputPixelFormat))
+            throw new ArgumentException($"输入像素格式错误{inputPixelFormat}");
+        if (!Enum.IsDefined(typeof(AVPixelFormat), outputPixelFormat))
+            throw new ArgumentException($"输出像素格式错误{outputPixelFormat}");
 
 
-        _destinationSize = destinationSize;
-        _dstPixelFormat = destinationPixelFormat;
+        _outputSize = outputSize;
+        _outputPixelFormat = outputPixelFormat;
 
-        //创建格式转换上下文
-        _pConvertContext = ffmpeg.sws_getContext(sourceSize.Width,
-             sourceSize.Height,
-             sourcePixelFormat,
-             destinationSize.Width,
-             destinationSize.Height,
-             destinationPixelFormat,
-             ffmpeg.SWS_FAST_BILINEAR, //指定转换器的算法
-             null,
-             null,
+        _pConvertContext = ffmpeg.sws_getCachedContext(_pConvertContext, inputSize.Width, inputSize.Height,
+            inputPixelFormat, outputSize.Width, outputSize.Height,
+            outputPixelFormat, ffmpeg.SWS_FAST_BILINEAR,
+            null,
+            null,
              null);
-
         if (_pConvertContext == null)
             throw new ApplicationException("Could not initialize the conversion context.");
         //计算转换过程中需要的缓存
 
-        var convertedFrameBufferSize = ffmpeg.av_image_get_buffer_size(destinationPixelFormat, destinationSize.Width, destinationSize.Height, 1);
+        var convertedFrameBufferSize = ffmpeg.av_image_get_buffer_size(outputPixelFormat, outputSize.Width, outputSize.Height, 1);
         _convertedFrameBufferPtr = Marshal.AllocHGlobal(convertedFrameBufferSize);
 
         //_convertedFrameBufferPtr = (byte*)ffmpeg.av_malloc((ulong)convertedFrameBufferSize);
-        _dstData = new byte_ptrArray4();
-        _dstLinesize = new int_array4();
+        _outputData = new byte_ptrArray4();
+        _outputLinesize = new int_array4();
 
         ffmpeg.av_image_fill_arrays(
-            ref _dstData,
-            ref _dstLinesize,
+            ref _outputData,
+            ref _outputLinesize,
             (byte*)_convertedFrameBufferPtr,
-            destinationPixelFormat,
-            destinationSize.Width,
-            destinationSize.Height,
+            outputPixelFormat,
+            outputSize.Width,
+            outputSize.Height,
         1);
 
-        //int size = ffmpeg.av_image_alloc(ref _dstData, ref _dstLinesize, destinationSize.Width, destinationSize.Height, destinationPixelFormat, 1);
+        //int size = ffmpeg.av_image_alloc(ref _dstData, ref _dstLinesize, outputSize.Width, outputSize.Height, outputPixelFormat, 1);
         /*
                 
 
         */
     }
 
+
+    public unsafe void  InitConverterIfNeeded(Size inputSize, AVPixelFormat inputPixelFormat,
+       Size outputSize, AVPixelFormat outputPixelFormat)
+    {
+
+    }
 
     public unsafe void Dispose()
     {
@@ -111,7 +113,7 @@ public class VideoFrameConverter : IDisposable
         int scale = ffmpeg.sws_scale(_pConvertContext,
             cpuFrame->data, cpuFrame->linesize,
             0, cpuFrame->height,
-            _dstData, _dstLinesize);
+            _outputData, _outputLinesize);
 
         // 4. 如果 GPU → CPU 分配了新帧，记得释放
         if (cpuFrame != sourceFrame)
@@ -127,14 +129,14 @@ public class VideoFrameConverter : IDisposable
 
         // 5. 创建目标 AVFrame 并填充数据
         AVFrame* dstFrame = ffmpeg.av_frame_alloc();
-        dstFrame->format = (int)_dstPixelFormat;
-        dstFrame->width = _destinationSize.Width;
-        dstFrame->height = _destinationSize.Height;
+        dstFrame->format = (int)_outputPixelFormat;
+        dstFrame->width = _outputSize.Width;
+        dstFrame->height = _outputSize.Height;
 
         for (int i = 0; i < 4; i++)
         {
-            dstFrame->data[(uint)i] = _dstData[(uint)i];
-            dstFrame->linesize[(uint)i] = _dstLinesize[(uint)i];
+            dstFrame->data[(uint)i] = _outputData[(uint)i];
+            dstFrame->linesize[(uint)i] = _outputLinesize[(uint)i];
         }
 
         return dstFrame;

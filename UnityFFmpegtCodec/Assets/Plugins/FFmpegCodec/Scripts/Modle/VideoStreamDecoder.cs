@@ -4,9 +4,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using UnityEngine;
-using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
 
+/// <summary>
+/// 解码
+/// </summary>
 public class VideoStreamDecoder : IDisposable
 {
     private unsafe readonly FFmpeg.AutoGen.AVCodecContext* _pCodecContext;
@@ -20,6 +21,9 @@ public class VideoStreamDecoder : IDisposable
     public string CodecName { get; }
     public Size FrameSize { get; }
     public AVPixelFormat PixelFormat { get; }
+
+
+
 
     public unsafe VideoStreamDecoder(string url, AVHWDeviceType HWDeviceType = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
     {
@@ -42,6 +46,7 @@ public class VideoStreamDecoder : IDisposable
         //如果硬件解码器类型不为 AV_HWDEVICE_TYPE_NONE，则创建硬件设备上下文
         if (HWDeviceType != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
         {
+            //注册硬件设备
             int ret = ffmpeg.av_hwdevice_ctx_create(&_pCodecContext->hw_device_ctx, HWDeviceType, null, null, 0);
             if (ret < 0)
             {
@@ -50,6 +55,7 @@ public class VideoStreamDecoder : IDisposable
             }
         }
 
+
         //配置解码器上下文
         ffmpeg.avcodec_parameters_to_context(_pCodecContext, _pFormatContext->streams[_streamIndex]->codecpar)
             .ThrowExceptionIfError();
@@ -57,7 +63,7 @@ public class VideoStreamDecoder : IDisposable
 
         _pAVCodec = ffmpeg.avcodec_find_decoder(_pCodecContext->codec_id);
 
-        //初始化解码器上下文
+        //打开解码器
         ffmpeg.avcodec_open2(_pCodecContext, codec, null).ThrowExceptionIfError();
 
         //获取解码器名称、帧大小和像素格式
@@ -65,7 +71,6 @@ public class VideoStreamDecoder : IDisposable
 
         FrameSize = new Size(_pCodecContext->width, _pCodecContext->height);
         PixelFormat = _pCodecContext->pix_fmt;
-
 
         //分配解码帧和数据包
         _pPacket = ffmpeg.av_packet_alloc();
@@ -76,16 +81,22 @@ public class VideoStreamDecoder : IDisposable
     {
         var pFrame = _pFrame;
         ffmpeg.av_frame_free(&pFrame);
-
         var pPacket = _pPacket;
         ffmpeg.av_packet_free(&pPacket);
-
-        ffmpeg.avcodec_close(_pCodecContext);
+        var pCodecContext = _pCodecContext;
+        ffmpeg.avcodec_free_context(&pCodecContext);
         var pFormatContext = _pFormatContext;
         ffmpeg.avformat_close_input(&pFormatContext);
+        var pReceivedFrame = _receivedFrame;
+        ffmpeg.av_frame_free(&pReceivedFrame);
     }
 
-    public unsafe bool TryDecodeNextFrame(out FFmpeg.AutoGen.AVFrame frame)
+    /// <summary>
+    /// 尝试解码下一帧
+    /// </summary>
+    /// <param name="frame"></param>
+    /// <returns></returns>
+    public unsafe bool TryDecodeNextFrame(out FFmpeg.AutoGen.AVFrame* frame)
     {
         ffmpeg.av_frame_unref(_pFrame);
         ffmpeg.av_frame_unref(_receivedFrame);
@@ -102,7 +113,7 @@ public class VideoStreamDecoder : IDisposable
 
                     if (error == ffmpeg.AVERROR_EOF)
                     {
-                        frame = *_pFrame;
+                        frame = _pFrame;
                         return false;
                     }
 
@@ -121,22 +132,41 @@ public class VideoStreamDecoder : IDisposable
 
         error.ThrowExceptionIfError();
 
-        if (_pCodecContext->hw_device_ctx != null)
+        if (_pCodecContext->hw_device_ctx != null && IsHardwareFrame(_pFrame))
         {
             ffmpeg.av_hwframe_transfer_data(_receivedFrame, _pFrame, 0).ThrowExceptionIfError();
-            frame = *_receivedFrame;
+            frame = _receivedFrame;
         }
         else
-            frame = *_pFrame;
+            frame = _pFrame;
 
         return true;
     }
 
+    /// <summary>
+    /// 判断是否是硬件帧
+    /// </summary>
+    /// <param name="frame"></param>
+    /// <returns></returns>
+    private unsafe bool IsHardwareFrame(AVFrame* frame)
+    {
+        return frame->format == (int)AVPixelFormat.AV_PIX_FMT_CUDA
+            || frame->format == (int)AVPixelFormat.AV_PIX_FMT_DXVA2_VLD
+            || frame->format == (int)AVPixelFormat.AV_PIX_FMT_QSV
+            || frame->format == (int)AVPixelFormat.AV_PIX_FMT_VAAPI;
+    }
+    /// <summary>
+    /// 获取总帧数
+    /// </summary>
+    /// <returns></returns>
     public unsafe long TotalFrames()
     {
         return _pFormatContext->streams[_streamIndex]->nb_frames;
     }
-
+    /// <summary>
+    /// 获取解码器上下文信息
+    /// </summary>
+    /// <returns></returns>
     public unsafe IReadOnlyDictionary<string, string> GetContextInfo()
     {
         AVDictionaryEntry* tag = null;
