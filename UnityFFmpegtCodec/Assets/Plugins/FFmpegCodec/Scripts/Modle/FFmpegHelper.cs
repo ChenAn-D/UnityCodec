@@ -76,11 +76,13 @@ public unsafe static class FFmpegHelper
     /// <param name="HWtype"></param>
     public static void ConfigureHWDecoder(ref AVHWDeviceType HWtype)
     {
+
         if (HWtype == AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
         {
             HWtype = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
             return;
         }
+
         var availableHWDecoders = new List<AVHWDeviceType>();
         var type = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
         while ((type = ffmpeg.av_hwdevice_iterate_types(type)) != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)

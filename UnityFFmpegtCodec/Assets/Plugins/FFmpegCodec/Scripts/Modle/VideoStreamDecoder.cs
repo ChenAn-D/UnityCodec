@@ -22,17 +22,16 @@ public class VideoStreamDecoder : IDisposable
     public Size FrameSize { get; }
     public AVPixelFormat PixelFormat { get; }
 
-
-
-
     public unsafe VideoStreamDecoder(string url, AVHWDeviceType HWDeviceType = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
     {
         //分配格式上下文和解码帧
         _pFormatContext = ffmpeg.avformat_alloc_context();
         _receivedFrame = ffmpeg.av_frame_alloc();
         var pFormatContext = _pFormatContext;
+
         //打开输入流并读取媒体文件头信息
         ffmpeg.avformat_open_input(&pFormatContext, url, null, null).ThrowExceptionIfError();
+
         //获取流媒体信息并存储到 _pFormatContext 中
         ffmpeg.avformat_find_stream_info(_pFormatContext, null).ThrowExceptionIfError();
         AVCodec* codec = null;
@@ -155,6 +154,7 @@ public class VideoStreamDecoder : IDisposable
             || frame->format == (int)AVPixelFormat.AV_PIX_FMT_QSV
             || frame->format == (int)AVPixelFormat.AV_PIX_FMT_VAAPI;
     }
+
     /// <summary>
     /// 获取总帧数
     /// </summary>
@@ -162,6 +162,11 @@ public class VideoStreamDecoder : IDisposable
     public unsafe long TotalFrames()
     {
         return _pFormatContext->streams[_streamIndex]->nb_frames;
+    }
+
+    public unsafe AVStream* GetStream()
+    {
+        return _pFormatContext->streams[_streamIndex];
     }
     /// <summary>
     /// 获取解码器上下文信息

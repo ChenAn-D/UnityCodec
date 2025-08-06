@@ -1,10 +1,7 @@
 using FFmpeg.AutoGen;
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
-using Unity.VisualScripting.FullSerializer;
 /// <summary>
 /// 对帧数据进行规格形状转换
 /// </summary>
@@ -65,13 +62,6 @@ public class VideoFrameConverter : IDisposable
                 
 
         */
-    }
-
-
-    public unsafe void  InitConverterIfNeeded(Size inputSize, AVPixelFormat inputPixelFormat,
-       Size outputSize, AVPixelFormat outputPixelFormat)
-    {
-
     }
 
     public unsafe void Dispose()
@@ -140,6 +130,32 @@ public class VideoFrameConverter : IDisposable
         }
 
         return dstFrame;
+    }
+
+    public unsafe AVFrame Convert(AVFrame sourceFrame)
+    {
+        ffmpeg.sws_scale(_pConvertContext,
+            sourceFrame.data,
+            sourceFrame.linesize,
+            0,
+            sourceFrame.height,
+            _outputData,
+            _outputLinesize);
+
+        var data = new byte_ptrArray8();
+        data.UpdateFrom(_outputData);
+        var linesize = new int_array8();
+        linesize.UpdateFrom(_outputLinesize);
+
+        return new AVFrame
+        {
+            data = data,
+            linesize = linesize,
+            width = _outputSize.Width,
+            height = _outputSize.Height,
+            best_effort_timestamp = sourceFrame.best_effort_timestamp// 这里可以设置为实际的时间戳
+
+        };
     }
 
 }
