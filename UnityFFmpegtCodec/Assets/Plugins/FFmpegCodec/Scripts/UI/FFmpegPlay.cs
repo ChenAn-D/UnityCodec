@@ -3,12 +3,19 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
+using static System.Collections.Specialized.BitVector32;
 
 public class FFmpegPlay : MonoBehaviour
 {
     public string url = "rtmp://58.222.192.76:1935/rtp/34020000001180003200_34020000001310000001";
     public Button Play_Btn;
     public Button Stop_Btn;
+    [Space(10)]
+    public Toggle Puase_Toggle;
+    public Button StartRecording;
+    public Button EndRecording;
+    public Button CaptureFrame_Btn;
+
     public Image Play_Img;
     public Image Loading_Icon;
 
@@ -24,8 +31,58 @@ public class FFmpegPlay : MonoBehaviour
     {
         Play_Btn.onClick.AddListener(PlayVedio);
         Stop_Btn.onClick.AddListener(StopVedio);
+        Puase_Toggle.onValueChanged.AddListener(OnPuase);
+        StartRecording.onClick.AddListener(OnStartRecording);
+        EndRecording.onClick.AddListener(OnEndRecording);
+        CaptureFrame_Btn.onClick.AddListener(OnCaptureFrame);
         FFmpegMgr.Instance().Init();
     }
+
+    /// <summary>
+    /// ÔÝÍ£
+    /// </summary>
+    /// <param name="arg0"></param>
+    private void OnPuase(bool isPuase)
+    {
+
+        FFmpegMgr.Instance().PauseDecoder(decoder, isPuase);
+    }
+
+    /// <summary>
+    /// ¿ªÊ¼Â¼ÖÆ
+    /// </summary>
+    private void OnStartRecording()
+    {
+
+    }
+
+    /// <summary>
+    /// ½áÊøÂ¼ÖÆ
+    /// </summary>
+    private void OnEndRecording()
+    {
+
+    }
+
+    /// <summary>
+    /// ½ØÍ¼
+    /// </summary>
+    private void OnCaptureFrame()
+    {
+        FFmpegMgr.Instance().CaptureFrame(decoder, (b, e) =>
+        {
+            if (b)
+            {
+                string path = $"{Application.streamingAssetsPath}/screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+                
+                System.IO.File.WriteAllBytes(path, e);
+                Debug.Log("Screenshot saved: " + path);
+                return;
+            }
+            Debug.LogWarning("½ØÍ¼Ê§°Ü");
+        });
+    }
+
 
     private void PlayVedio()
     {

@@ -1,10 +1,7 @@
 using FFmpeg.AutoGen;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
-using Unity.Mathematics;
-using Unity.VisualScripting;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -12,6 +9,9 @@ public class VideoSession
 {
     public VideoFrameConverter Converter;
     public volatile bool IsCancelled;
+    public volatile bool IsPaused;
+    public volatile bool IsRecording;
+    public AVFrame CaptureFrame;
 }
 
 public class FFmpegMgr : Single<FFmpegMgr>
@@ -42,7 +42,7 @@ public class FFmpegMgr : Single<FFmpegMgr>
             if (pair.Value != null) pair.Value.IsCancelled = true;
         }
         video_dic.Clear();
-
+        isRunning = false;
     }
 
     public void DisposeDecoder(VideoStreamDecoder decoder)
@@ -55,12 +55,75 @@ public class FFmpegMgr : Single<FFmpegMgr>
         {
             video_dic.Remove(decoder);
         }
-        isRunning = false;
+    }
+
+    /// <summary>
+    /// 暂停
+    /// </summary>
+    /// <param name="decoder"></param>
+    /// <param name="pause"></param>
+    public void PauseDecoder(VideoStreamDecoder decoder, bool pause)
+    {
+        if (decoder != null && video_dic.TryGetValue(decoder, out var session))
+        {
+            session.IsPaused = pause;
+        }
+    }
+
+    /// <summary>
+    /// 录制
+    /// </summary>
+    /// <param name="decoder"></param>
+    /// <param name="start"></param>
+    public void ToggleRecording(VideoStreamDecoder decoder, bool start)
+    {
+        //if (decoder != null && video_dic.TryGetValue(decoder, out var session))
+        //{
+        //    session.IsRecording = start;
+        //    if (start)
+        //    {
+        //        string path = $"{Application.persistentDataPath}/record_{DateTime.Now:yyyyMMdd_HHmmss}";
+        //        session.Recorder = new FFmpegRecorder();
+        //        session.Recorder.Start(path);
+        //    }
+        //    else
+        //    {
+        //        session.Recorder?.Stop();
+        //        session.Recorder = null;
+        //    }
+        //}
+    }
+
+    /// <summary>
+    /// 截图
+    /// </summary>
+    /// <param name="decoder"></param>
+    public unsafe void CaptureFrame(VideoStreamDecoder decoder, Action<bool, byte[]> pngDataCall)
+    {
+        lock (videoDicLock)
+        {
+            if (decoder != null && video_dic.TryGetValue(decoder, out var session))
+            {
+                try
+                {
+
+                    AVFrame frame = session.CaptureFrame;
+                    AVFrame* pFrame = &frame;
+                    pngDataCall?.Invoke(true, session.Converter.EncodeFrameToImage(pFrame));
+                }
+                catch (Exception e)
+                {
+                    pngDataCall?.Invoke(false, new byte[0]);
+                    throw e;
+                }
+
+            }
+        }
     }
 
     public void OpenVedio(string url, AVHWDeviceType HWDevice, Action<VideoStreamDecoder> onFrameConverted, Action<AVFrame> av_action)
     {
-        //DecodeAllFramesToImages(url, HWDevice, onFrameConverted);
+
         ThreadPool.QueueUserWorkItem(_ =>
         {
             try
@@ -104,7 +167,6 @@ public class FFmpegMgr : Single<FFmpegMgr>
 
             lock (videoDicLock)
             {
-
                 var session = new VideoSession { Converter = vfc, IsCancelled = false };
                 video_dic[vsd] = session;
                 onFrameConverted?.Invoke(vsd);
@@ -119,7 +181,17 @@ public class FFmpegMgr : Single<FFmpegMgr>
                     break;
                 }
 
+                //如果时实时视频流就过滤当前帧，否则就等待恢复播放
+                if (currentSession.IsPaused && !currentSession.IsCancelled && vsd.TotalFrames() == 0) continue;
+
+                // 等待恢复播放
+                while (currentSession.IsPaused && !currentSession.IsCancelled)
+                {
+                    Thread.Sleep(10);
+                }
+
                 var convertedFrame = vfc.Convert(*frame);
+                currentSession.CaptureFrame = convertedFrame;
                 av_action?.Invoke(convertedFrame);
             }
 
