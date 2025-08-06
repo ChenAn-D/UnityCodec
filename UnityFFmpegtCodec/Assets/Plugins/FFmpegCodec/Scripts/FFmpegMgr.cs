@@ -70,6 +70,7 @@ public class FFmpegMgr : Single<FFmpegMgr>
             catch (Exception ex)
             {
                 Debug.LogError($"Error decoding video: {ex}\nStackTrace: {ex.StackTrace}");
+                onFrameConverted?.Invoke(null);
             }
         });
     }

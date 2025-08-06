@@ -2430,7 +2430,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 77fa3871e53e7a341981a5a20169678f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  url: rtmp://58.222.192.76:1935/rtp/34020000001180003200_34020000001310000001
+  url: rtmp://58.200.131.2:1935/livetv/hunantv
   Play_Btn: {fileID: 2123722304}
   Stop_Btn: {fileID: 540051974}
   Play_Img: {fileID: 1046740209}
