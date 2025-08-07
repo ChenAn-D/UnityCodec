@@ -17,7 +17,7 @@ public class VideoSession
     public bool SeekRequested;//跳转播放进度
     public float progress;//当前播放进度
     public string Recorder_Path;
-    public FFmpegEncoder Recorder;
+    public FFmpegMp4Encoder Recorder;
     public VideoFrameConverter Recorder_Converter;
 }
 
@@ -152,13 +152,14 @@ public class FFmpegMgr : Single<FFmpegMgr>
             {
                 string path = $"{Application.streamingAssetsPath}/record_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
                 session.Recorder_Path = path;
-                var fs = File.Open(path, FileMode.Create);
+                //var fs = File.Open(path, FileMode.Create);
                 session.Recorder_Converter = new VideoFrameConverter(decoder.FrameSize, AVPixelFormat.@AV_PIX_FMT_BGRA, decoder.FrameSize, AVPixelFormat.AV_PIX_FMT_YUV420P);
-                session.Recorder = new FFmpegEncoder(fs, 25, decoder.FrameSize);
+                session.Recorder = new FFmpegMp4Encoder(path, 25, decoder.FrameSize);
             }
             else
             {
-                session.Recorder?.DrainAsync();
+                //session.Recorder?.DrainAsync();
+                session.Recorder?.Flush();
                 session.Recorder_Converter?.Dispose();
                 session.Recorder = null;
                 session.Recorder_Converter = null;
@@ -321,7 +322,8 @@ public class FFmpegMgr : Single<FFmpegMgr>
 
                 if (currentSession.IsRecording)
                 {
-                    currentSession.Recorder?.Encode(currentSession.Recorder_Converter.Convert(*frame));
+                    var f = currentSession.Recorder_Converter.Convert(*frame);
+                    currentSession.Recorder?.EncodeFrame(&f);
                 }
 
                 currentSession.CaptureFrame = convertedFrame;

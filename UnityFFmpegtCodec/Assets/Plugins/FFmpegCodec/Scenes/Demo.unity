@@ -3178,7 +3178,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6389212994423488460, guid: dceaa2ff0a03b1044a708d93627700e0, type: 3}
       propertyPath: url
-      value: D:\VideoTest\Save\test.mp4
+      value: http://zhibo.hkstv.tv/livestream/mutfysrq/playlist.m3u8
       objectReference: {fileID: 0}
     - target: {fileID: 6389212994423488460, guid: dceaa2ff0a03b1044a708d93627700e0, type: 3}
       propertyPath: slider
