@@ -1,7 +1,6 @@
 using FFmpeg.AutoGen;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 
@@ -163,6 +162,14 @@ public class VideoStreamDecoder : IDisposable
     {
         return _pFormatContext->streams[_streamIndex]->nb_frames;
     }
+    /// <summary>
+    /// 获取总时长
+    /// </summary>
+    /// <returns></returns>
+    public unsafe float GetDuration()
+    {
+        return (float)_pFormatContext->streams[_streamIndex]->duration;
+    }
 
     public unsafe AVStream* GetStream()
     {
@@ -186,4 +193,60 @@ public class VideoStreamDecoder : IDisposable
 
         return result;
     }
+
+    /// <summary>
+    /// 跳转
+    /// </summary>
+    /// <param name="percent"></param>
+    /// <param name="backward"></param>
+    /// <returns></returns>
+    public unsafe bool SeekToPercent(float percent, bool backward = true)
+    {
+        if (percent < 0f) percent = 0f;
+        if (percent > 1f) percent = 1f;
+
+        var stream = _pFormatContext->streams[_streamIndex];
+
+        //实时流不改变
+        if (stream->duration <= 0) return false;
+
+        AVRational time_base = stream->time_base;
+        double duration = stream->duration * ffmpeg.av_q2d(time_base);
+        double targetSeconds = duration * percent;
+
+        long targetPts = (long)(targetSeconds / ffmpeg.av_q2d(time_base)); // 注意是 / 而不是 *
+
+        int seekFlag = backward ? ffmpeg.AVSEEK_FLAG_BACKWARD : ffmpeg.AVSEEK_FLAG_ANY;
+
+        int seek = (int)targetPts;
+
+        int ret = ffmpeg.av_seek_frame(_pFormatContext, _streamIndex, targetPts, seekFlag);
+        if (ret < 0)
+        {
+            FFmpegHelper.av_strerror(ret);
+            return false;
+        }
+
+        ffmpeg.avcodec_flush_buffers(_pCodecContext);
+        AVPacket packet;
+        while (ffmpeg.av_read_frame(_pFormatContext, &packet) >= 0)
+        {
+            if (packet.stream_index == _streamIndex)
+            {
+                ffmpeg.avcodec_send_packet(_pCodecContext, &packet);
+                AVFrame* frame = ffmpeg.av_frame_alloc();
+                while (ffmpeg.avcodec_receive_frame(_pCodecContext, frame) == 0)
+                {
+                    //处理解码后的帧...
+
+                }
+                ffmpeg.av_frame_free(&frame);
+            }
+            ffmpeg.av_packet_unref(&packet);
+            return true;
+        }
+
+        return false;
+    }
+
 }

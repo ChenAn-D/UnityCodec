@@ -2,8 +2,8 @@ using FFmpeg.AutoGen;
 using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using UnityEngine.UI;
-using static System.Collections.Specialized.BitVector32;
 
 public class FFmpegPlay : MonoBehaviour
 {
@@ -15,6 +15,8 @@ public class FFmpegPlay : MonoBehaviour
     public Button StartRecording;
     public Button EndRecording;
     public Button CaptureFrame_Btn;
+    [Space(10)]
+    public Slider slider;
 
     public Image Play_Img;
     public Image Loading_Icon;
@@ -35,7 +37,17 @@ public class FFmpegPlay : MonoBehaviour
         StartRecording.onClick.AddListener(OnStartRecording);
         EndRecording.onClick.AddListener(OnEndRecording);
         CaptureFrame_Btn.onClick.AddListener(OnCaptureFrame);
+        slider.onValueChanged.AddListener(OnPressChange);
         FFmpegMgr.Instance().Init();
+    }
+
+    /// <summary>
+    /// 进度条
+    /// </summary>
+    /// <param name="arg0"></param>
+    private void OnPressChange(float arg0)
+    {
+        FFmpegMgr.Instance().Seek(decoder, arg0);
     }
 
     /// <summary>
@@ -44,7 +56,7 @@ public class FFmpegPlay : MonoBehaviour
     /// <param name="arg0"></param>
     private void OnPuase(bool isPuase)
     {
-
+        Puase_Toggle.transform.GetComponentInChildren<Text>().text = isPuase ? "继续" : "暂停";
         FFmpegMgr.Instance().PauseDecoder(decoder, isPuase);
     }
 
@@ -53,6 +65,7 @@ public class FFmpegPlay : MonoBehaviour
     /// </summary>
     private void OnStartRecording()
     {
+        FFmpegMgr.Instance().ToggleRecording(decoder, true);
 
     }
 
@@ -61,7 +74,7 @@ public class FFmpegPlay : MonoBehaviour
     /// </summary>
     private void OnEndRecording()
     {
-
+        FFmpegMgr.Instance().ToggleRecording(decoder, false);
     }
 
     /// <summary>
@@ -74,7 +87,7 @@ public class FFmpegPlay : MonoBehaviour
             if (b)
             {
                 string path = $"{Application.streamingAssetsPath}/screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
-                
+
                 System.IO.File.WriteAllBytes(path, e);
                 Debug.Log("Screenshot saved: " + path);
                 return;
@@ -117,6 +130,12 @@ public class FFmpegPlay : MonoBehaviour
 
         this.decoder = decoder;
         IsPlaying = true;
+        //float timer = (float)(decoder.GetDuration() * ffmpeg.av_q2d(decoder.GetStream()->time_base));
+        ////初始化进度条
+        //MainThreadDispatcher.Enqueue(() =>
+        //{
+        //    slider.maxValue = timer;
+        //});
     }
 
     private void OnAVFrameCallBack(AVFrame frame)
@@ -177,30 +196,32 @@ public class FFmpegPlay : MonoBehaviour
         int height = convertedFrame.height;
         int stride = convertedFrame.linesize[0];
         byte* source = convertedFrame.data[0];
+        float timer = (float)FFmpegMgr.Instance().GetCurrentProgress(decoder);
+
+        byte[] pixelData = new byte[height * stride];
+        for (int y = 0; y < height; y++)
+        {
+            IntPtr srcRowPtr = (IntPtr)(source + (height - 1 - y) * stride);
+            Marshal.Copy(srcRowPtr, pixelData, y * stride, stride);
+        }
 
         MainThreadDispatcher.Enqueue(() =>
         {
-            if (source == null) return;
+            if (!IsPlaying) return;
             if (_videoTexture == null)
             {
                 _videoTexture = new Texture2D(width, height, TextureFormat.BGRA32, false);
                 if (Play_Img != null)
                 {
                     Play_Img.sprite = Sprite.Create(_videoTexture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
-                    //Image.rectTransform.sizeDelta = new Vector2(width, height);
                 }
-            }
-
-            byte[] pixelData = new byte[height * stride];
-            for (int y = 0; y < height; y++)
-            {
-                IntPtr srcRowPtr = (IntPtr)(source + (height - 1 - y) * stride);
-                Marshal.Copy(srcRowPtr, pixelData, y * stride, stride);
             }
 
             _videoTexture.LoadRawTextureData(pixelData);
             _videoTexture.Apply(false);
 
+            //更新进度条
+            slider.SetValueWithoutNotify(timer);
         });
     }
 }
