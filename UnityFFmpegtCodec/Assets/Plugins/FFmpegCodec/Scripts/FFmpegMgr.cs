@@ -151,15 +151,17 @@ public class FFmpegMgr : Single<FFmpegMgr>
             if (start)
             {
                 string path = $"{Application.streamingAssetsPath}/record_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
+                // if (!File.Exists(path)) File.Create(path);
                 session.Recorder_Path = path;
                 //var fs = File.Open(path, FileMode.Create);
                 session.Recorder_Converter = new VideoFrameConverter(decoder.FrameSize, AVPixelFormat.@AV_PIX_FMT_BGRA, decoder.FrameSize, AVPixelFormat.AV_PIX_FMT_YUV420P);
-                session.Recorder = new FFmpegMp4Encoder(path, 25, decoder.FrameSize);
+
+                session.Recorder = new FFmpegMp4Encoder(path, 25, decoder.FrameSize, session.CaptureFrame.best_effort_timestamp);
             }
             else
             {
                 //session.Recorder?.DrainAsync();
-                session.Recorder?.Flush();
+                session.Recorder?.Finish();
                 session.Recorder_Converter?.Dispose();
                 session.Recorder = null;
                 session.Recorder_Converter = null;
@@ -324,6 +326,7 @@ public class FFmpegMgr : Single<FFmpegMgr>
                 {
                     var f = currentSession.Recorder_Converter.Convert(*frame);
                     currentSession.Recorder?.EncodeFrame(&f);
+
                 }
 
                 currentSession.CaptureFrame = convertedFrame;

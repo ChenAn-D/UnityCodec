@@ -38,6 +38,7 @@ public class VideoStreamDecoder : IDisposable
         _streamIndex = ffmpeg
             .av_find_best_stream(_pFormatContext, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0)
             .ThrowExceptionIfError();
+
         //根据解码器分配上下文
         _pCodecContext = ffmpeg.avcodec_alloc_context3(codec);
 
