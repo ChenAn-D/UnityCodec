@@ -1,5 +1,6 @@
 using FFmpeg.AutoGen;
 using FFmpegMediaFramework.Decoder;
+using System.Drawing;
 
 /// <summary>
 /// ÊÓÆµ½âÂëÆ÷
@@ -14,5 +15,6 @@ public class VideoDecoder : DecoderBase
     public unsafe AVPixelFormat PixelFormat => CodecContext->pix_fmt;
     public unsafe int Width => CodecContext->width;
     public unsafe int Height => CodecContext->height;
+    public unsafe Size FrameSize => new Size(Width, Height);
 
 }

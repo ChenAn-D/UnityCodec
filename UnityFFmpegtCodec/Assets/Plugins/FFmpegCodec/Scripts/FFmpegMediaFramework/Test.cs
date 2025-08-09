@@ -1,7 +1,9 @@
 using FFmpeg.AutoGen;
 using System;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.UI;
 
 public class Test : MonoBehaviour
@@ -23,11 +25,12 @@ public class Test : MonoBehaviour
     [Space(10)]
     public AVHWDeviceType HWDevice = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
 
-    private VideoStreamDecoder decoder;
     private bool IsPlaying = false;
     private bool IsLoading = false;
     private Texture2D _videoTexture;
     MediaPlayer mediaPlayer;
+
+    AudioPlayer audioPlayer;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -53,13 +56,47 @@ public class Test : MonoBehaviour
         mediaPlayer.OnVideoFrame += OnVideoFrameCallBack;
 
         mediaPlayer.OnAudioFrame += OnAudioFrameCallBack;
+        mediaPlayer.EndPlayAction += OnAudioEndPlayCallBack;
+        mediaPlayer.CurrentPrsAction += OnCurrentPrsCallBack;
+        mediaPlayer.LoadingAction += OnLoadingAVStreamCallBack;
 
+        audioPlayer = transform.GetComponent<AudioPlayer>();
+    }
+
+    private void OnLoadingAVStreamCallBack(bool loading)
+    {
+        IsLoading = loading;
+    }
+
+    /// <summary>
+    /// 当前进度
+    /// </summary>
+    /// <param name="press"></param>
+    private void OnCurrentPrsCallBack(float press)
+    {
+        MainThreadDispatcher.Enqueue(() =>
+        {
+            //更新进度条
+            slider.SetValueWithoutNotify(press);
+        });
+    }
+
+    private void OnAudioEndPlayCallBack(bool auto)
+    {
+        Debug.Log("播放结束");
+
+        MainThreadDispatcher.Enqueue(() =>
+        {
+            IsPlaying = false;
+            Play_Img.sprite = null;
+            _videoTexture = null;
+        });
     }
 
     private void PlayVedio()
     {
         IsPlaying = true;
-        mediaPlayer.Start();
+        Task.Run(async () => { await mediaPlayer.Start(); });
     }
 
     private void StopVedio()
@@ -70,6 +107,7 @@ public class Test : MonoBehaviour
 
     private void OnPuase(bool puase)
     {
+        Puase_Toggle.transform.GetComponentInChildren<Text>().text = puase ? "继续" : "暂停";
         mediaPlayer.ChangePlayState(puase ? MediaPlayerState.Paused : MediaPlayerState.Playing);
     }
 
@@ -85,27 +123,45 @@ public class Test : MonoBehaviour
 
     private void OnCaptureFrame()
     {
+        mediaPlayer.CaptureFrame((b, data) =>
+        {
+            if (b)
+            {
+                string path = $"{Application.streamingAssetsPath}/screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
 
+                System.IO.File.WriteAllBytes(path, data);
+                Debug.Log("Screenshot saved: " + path);
+                return;
+            }
+            Debug.LogWarning("截图失败");
+        });
     }
 
     private void OnPressChange(float arg0)
     {
-
+        bool can_press = mediaPlayer.SeekToPercent(arg0);
+        if (can_press) IsPlaying = true;
     }
 
     unsafe void OnVideoFrameCallBack(IntPtr ptr)
     {
         AVFrame* frame = (AVFrame*)ptr;
         SetFrame(frame);
-        // 转 Texture2D 等操作
-        Debug.Log(frame->best_effort_timestamp);
+
     }
 
-    unsafe void OnAudioFrameCallBack(IntPtr ptr)
+    unsafe void OnAudioFrameCallBack(IntPtr buffer, int size)
     {
-        AVFrame* frame = (AVFrame*)ptr;
+        // AVFrame* frame = (AVFrame*)ptr;
+        int floatCount = size / sizeof(float);
+        byte[] managedData = new byte[floatCount];
+        Marshal.Copy(buffer, managedData, 0, floatCount);
+        mediaPlayer.GetAudioInitData(out int channels, out int sampleRate);
 
-        Debug.Log(frame->best_effort_timestamp);
+        MainThreadDispatcher.Enqueue(() =>
+        {
+            audioPlayer?.PlayPCM(managedData, channels, sampleRate, false);
+        });
     }
 
     private unsafe void SetFrame(AVFrame* convertedFrame)
@@ -114,7 +170,6 @@ public class Test : MonoBehaviour
         int height = convertedFrame->height;
         int stride = convertedFrame->linesize[0];
         byte* source = convertedFrame->data[0];
-        float timer = (float)FFmpegMgr.Instance().GetCurrentProgress(decoder);
 
         byte[] pixelData = new byte[height * stride];
         for (int y = 0; y < height; y++)
@@ -138,8 +193,6 @@ public class Test : MonoBehaviour
             _videoTexture.LoadRawTextureData(pixelData);
             _videoTexture.Apply(false);
 
-            //更新进度条
-            slider.SetValueWithoutNotify(timer);
         });
     }
 
