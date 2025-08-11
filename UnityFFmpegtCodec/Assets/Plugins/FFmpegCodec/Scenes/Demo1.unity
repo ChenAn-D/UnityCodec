@@ -612,7 +612,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1acd6240dfd421f4ebff39554a4f9481, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  url: C:\Users\MSI-NB\Videos\Captures\1700058653296.mp4
+  url: D:\VideoTest\Save\test.mp4
   Play_Btn: {fileID: 1845338918}
   Stop_Btn: {fileID: 1131135881}
   Puase_Toggle: {fileID: 2115581180}

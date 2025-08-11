@@ -44,7 +44,8 @@ public class MediaPlayer : IDisposable
 
     public event Action<IntPtr> OnVideoFrame;
     //public event Action<IntPtr> OnAudioFrame;
-    public Action<IntPtr, int> OnAudioFrame;
+    //public Action<IntPtr, int> OnAudioFrame;
+    public Action<byte[]> OnAudioFrame;
     /// <summary>
     /// 结束播放事件回调 bool:是否主动结束
     /// </summary>
@@ -115,6 +116,7 @@ public class MediaPlayer : IDisposable
                 _audioStreamIndex = i;
                 _audioDecoder = new AudioDecoder(codecpar, HWDeviceType);
                 _audioResampler = new AudioResampler(codecpar);
+                _audioResampler.Init(_audioDecoder.CodecContext);
             }
         }
 
@@ -292,8 +294,15 @@ public class MediaPlayer : IDisposable
                 {
                     if (_audioDecoder.DecodePacket(packet, out decodedFrame))
                     {
-                        var dataSize = _audioResampler.Convert(decodedFrame, out IntPtr outBuffer);
-                        OnAudioFrame?.Invoke(outBuffer, dataSize);
+                        if (_audioResampler != null)
+                        {
+
+                            //var dataSize = _audioResampler.Convert(decodedFrame, out IntPtr outBuffer);
+                            //OnAudioFrame?.Invoke(outBuffer, dataSize);
+
+                            _audioResampler.Convert(decodedFrame, _audioDecoder.CodecContext, out byte[] buffer);
+                            OnAudioFrame?.Invoke(buffer);
+                        }
                     }
                 }
 

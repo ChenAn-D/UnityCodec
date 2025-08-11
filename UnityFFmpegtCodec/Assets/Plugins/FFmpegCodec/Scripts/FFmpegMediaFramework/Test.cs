@@ -3,7 +3,6 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Audio;
 using UnityEngine.UI;
 
 public class Test : MonoBehaviour
@@ -150,17 +149,18 @@ public class Test : MonoBehaviour
 
     }
 
-    unsafe void OnAudioFrameCallBack(IntPtr buffer, int size)
+    //unsafe void OnAudioFrameCallBack(IntPtr buffer, int size)
+    unsafe void OnAudioFrameCallBack(byte[] buffer)
     {
         // AVFrame* frame = (AVFrame*)ptr;
-        int floatCount = size / sizeof(float);
-        byte[] managedData = new byte[floatCount];
-        Marshal.Copy(buffer, managedData, 0, floatCount);
+        //int floatCount = size / sizeof(float);
+        //byte[] managedData = new byte[floatCount];
+        //Marshal.Copy(buffer, managedData, 0, floatCount);
         mediaPlayer.GetAudioInitData(out int channels, out int sampleRate);
 
         MainThreadDispatcher.Enqueue(() =>
         {
-            audioPlayer?.PlayPCM(managedData, channels, sampleRate, false);
+            audioPlayer?.PlayPCM(buffer, channels, sampleRate, true);
         });
     }
 

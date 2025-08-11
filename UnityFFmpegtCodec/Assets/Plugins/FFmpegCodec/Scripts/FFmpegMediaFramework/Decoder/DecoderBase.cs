@@ -1,5 +1,7 @@
 ﻿using FFmpeg.AutoGen;
 using System;
+using System.Diagnostics;
+using UnityEngine;
 
 namespace FFmpegMediaFramework.Decoder
 {
@@ -46,11 +48,34 @@ namespace FFmpegMediaFramework.Decoder
                 return false;
 
             AVFrame* tempFrame = ffmpeg.av_frame_alloc();
+            if (tempFrame == null)
+            {
+                UnityEngine.Debug.LogError("Failed to allocate frame memory.");
+                return false;
+            }
+
+            //从解码器中获取解码后的帧数据
             int receiveResult = ffmpeg.avcodec_receive_frame(CodecContext, tempFrame);
             if (receiveResult == 0)
             {
                 frame = tempFrame;
                 return true;
+            }
+            else if (receiveResult == ffmpeg.AVERROR(ffmpeg.AVERROR_EOF))
+            {
+                // 所有的输入数据都已经被解码并返回
+                frame = tempFrame;
+                return false;
+            }
+            else if (receiveResult == ffmpeg.AVERROR(ffmpeg.EAGAIN))
+            {
+                // 需要更多数据来解码当前帧
+                frame = tempFrame;
+                return false;
+            }
+            else
+            {
+                UnityEngine.Debug.LogError($"Error receiving frame: {receiveResult}");
             }
 
             ffmpeg.av_frame_free(&tempFrame);
