@@ -160,7 +160,9 @@ public class Test : MonoBehaviour
 
         MainThreadDispatcher.Enqueue(() =>
         {
-            audioPlayer?.PlayPCM(buffer, channels, sampleRate, true);
+            //audioPlayer?.PlayPCM(buffer, channels, sampleRate, true);
+            audioPlayer?.PlayPCM(buffer,4, channels, sampleRate, true);
+
         });
     }
 
