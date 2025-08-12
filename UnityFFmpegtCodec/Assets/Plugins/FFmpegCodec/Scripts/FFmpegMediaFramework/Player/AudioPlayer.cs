@@ -1,41 +1,81 @@
 using UnityEngine;
 using System;
+using UnityEngine.Audio;
+using UnityEngine.LightTransport;
+using System.Collections.Generic;
+using System.Collections;
 
 public class AudioPlayer : MonoBehaviour
 {
     public AudioSource audioSource;
     private AudioClip clip;
+
+    private float[] audioBuffer;  // 环形缓冲区
+    private int bufferWritePos = 0;
+    private int bufferReadPos = 0;
+    private int bufferSize = 48000 * 10; // 10秒缓存，示例
+    private object bufferLock = new object();
     public void Start()
     {
         if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
         }
+        audioSource.Play();
     }
 
-    // 传入解码后的 PCM 数据（byte[]），并播放
-    public void PlayPCM(byte[] pcmData, int channels, int sampleRate, bool isFloat)
-    {
-        int sampleCount = pcmData.Length / (isFloat ? sizeof(float) : sizeof(short));
-        float[] samples = new float[sampleCount];
+    private readonly Queue<float> queue = new Queue<float>();
+    private object lockObj = new object();
 
-        if (isFloat)
+    public void PushAudio(byte[] pcmBuffer, int bytesPerSample, int channels, int sampleRate, bool isFloatFormat)
+    {
+        if (pcmBuffer == null || pcmBuffer.Length == 0)
         {
-            // F32 格式直接拷贝
-            Buffer.BlockCopy(pcmData, 0, samples, 0, pcmData.Length);
+            Debug.LogWarning("PCM 缓冲区为空，无法播放");
+            return;
+        }
+
+        int sampleCount = pcmBuffer.Length / bytesPerSample;
+        float[] floatBuffer = new float[sampleCount];
+
+        if (isFloatFormat && bytesPerSample == 4)
+        {
+            // 直接复制 float PCM
+            Buffer.BlockCopy(pcmBuffer, 0, floatBuffer, 0, pcmBuffer.Length);
+        }
+        else if (!isFloatFormat && bytesPerSample == 2)
+        {
+            // int16 PCM 转换为 float [-1, 1]
+            for (int i = 0; i < sampleCount; i++)
+            {
+                short sample = (short)(pcmBuffer[i * 2] | (pcmBuffer[i * 2 + 1] << 8));
+                floatBuffer[i] = sample / 32768f;
+            }
         }
         else
         {
-            // S16 格式转换到 float (-32768~32767 => -1~1)
-            for (int i = 0; i < sampleCount; i++)
-                samples[i] = BitConverter.ToInt16(pcmData, i * 2) / 32768f;
+            throw new NotSupportedException("不支持的 PCM 格式");
         }
 
-        AudioClip clip = AudioClip.Create("FFmpegAudio", sampleCount / channels, channels, sampleRate, false);
-        clip.SetData(samples, 0);
+        lock (lockObj)
+        {
+            foreach (var s in floatBuffer)
+                queue.Enqueue(s);
+        }
+    }
 
-        audioSource.clip = clip;
-        audioSource.Play();
+    void OnAudioFilterRead(float[] data, int channels)
+    {
+        lock (lockObj)
+        {
+            for (int i = 0; i < data.Length; i++)
+            {
+                if (queue.Count > 0)
+                    data[i] = queue.Dequeue();
+                else
+                    data[i] = 0f; // 缓冲不足就填 0（静音）
+            }
+        }
     }
 
     /// <summary>
@@ -75,11 +115,10 @@ public class AudioPlayer : MonoBehaviour
         {
             throw new NotSupportedException("不支持的 PCM 格式");
         }
-
+        audioSource.Stop();
         // 创建或更新 AudioClip
-        clip = AudioClip.Create("DecodedAudio", sampleCount / channels, channels, sampleRate, false);
+        if (clip == null) clip = AudioClip.Create("DecodedAudio", sampleCount / channels, channels, sampleRate, false);
         clip.SetData(floatBuffer, 0);
-
         // 播放
         audioSource.clip = clip;
         audioSource.Play();

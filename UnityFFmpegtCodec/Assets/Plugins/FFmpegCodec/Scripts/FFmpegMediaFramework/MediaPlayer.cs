@@ -116,7 +116,7 @@ public class MediaPlayer : IDisposable
                 _audioStreamIndex = i;
                 _audioDecoder = new AudioDecoder(codecpar, HWDeviceType);
                 _audioResampler = new AudioResampler(codecpar);
-                _audioResampler.Init(_audioDecoder.CodecContext);
+                //_audioResampler.Init(_audioDecoder.CodecContext);
             }
         }
 
@@ -296,10 +296,6 @@ public class MediaPlayer : IDisposable
                     {
                         if (_audioResampler != null)
                         {
-
-                            //var dataSize = _audioResampler.Convert(decodedFrame, out IntPtr outBuffer);
-                            //OnAudioFrame?.Invoke(outBuffer, dataSize);
-
                             _audioResampler.Convert(decodedFrame, _audioDecoder.CodecContext, out byte[] buffer);
                             OnAudioFrame?.Invoke(buffer);
                         }
@@ -345,6 +341,7 @@ public class MediaPlayer : IDisposable
 
         if (percent < 0f) percent = 0f;
         if (percent > 1f) percent = 1f;
+        if (_demuxer == null) return;
 
         var stream = _demuxer.FormatContext->streams[_videoStreamIndex];
 
