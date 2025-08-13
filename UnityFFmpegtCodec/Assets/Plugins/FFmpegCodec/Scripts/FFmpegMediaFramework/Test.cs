@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 public class Test : MonoBehaviour
 {
-    public string url = "rtmp://58.222.192.76:1935/rtp/34020000001180003200_34020000001310000001";
+    public string url = "http://zhibo.hkstv.tv/livestream/mutfysrq/playlist.m3u8"; //"rtmp://58.222.192.76:1935/rtp/34020000001180003200_34020000001310000001";
     public Button Play_Btn;
     public Button Stop_Btn;
     [Space(10)]
