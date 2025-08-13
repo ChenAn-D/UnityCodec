@@ -1,20 +1,15 @@
-using UnityEngine;
 using System;
-using UnityEngine.Audio;
-using UnityEngine.LightTransport;
 using System.Collections.Generic;
-using System.Collections;
+using UnityEngine;
 
 public class AudioPlayer : MonoBehaviour
 {
     public AudioSource audioSource;
     private AudioClip clip;
 
-    private float[] audioBuffer;  // 环形缓冲区
-    private int bufferWritePos = 0;
-    private int bufferReadPos = 0;
-    private int bufferSize = 48000 * 10; // 10秒缓存，示例
-    private object bufferLock = new object();
+    private readonly Queue<float> queue = new Queue<float>();
+    private object lockObj = new object();
+
     public void Start()
     {
         if (audioSource == null)
@@ -24,8 +19,7 @@ public class AudioPlayer : MonoBehaviour
         audioSource.Play();
     }
 
-    private readonly Queue<float> queue = new Queue<float>();
-    private object lockObj = new object();
+
 
     public void PushAudio(byte[] pcmBuffer, int bytesPerSample, int channels, int sampleRate, bool isFloatFormat)
     {
@@ -63,6 +57,33 @@ public class AudioPlayer : MonoBehaviour
                 queue.Enqueue(s);
         }
     }
+
+    public void NotchFilter(float[] samples, float sampleRate, float notchFreq, float q)
+    {
+        float w0 = 2 * Mathf.PI * notchFreq / sampleRate;
+        float alpha = Mathf.Sin(w0) / (2 * q);
+        float cosw0 = Mathf.Cos(w0);
+
+        float b0 = 1;
+        float b1 = -2 * cosw0;
+        float b2 = 1;
+        float a0 = 1 + alpha;
+        float a1 = -2 * cosw0;
+        float a2 = 1 - alpha;
+
+        b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
+
+        float x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float x0 = samples[i];
+            float y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            samples[i] = y0;
+            x2 = x1; x1 = x0;
+            y2 = y1; y1 = y0;
+        }
+    }
+
 
     void OnAudioFilterRead(float[] data, int channels)
     {

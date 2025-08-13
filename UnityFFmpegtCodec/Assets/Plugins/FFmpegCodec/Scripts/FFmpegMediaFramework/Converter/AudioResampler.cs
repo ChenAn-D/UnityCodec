@@ -116,9 +116,9 @@ public unsafe class AudioResampler : IDisposable
     {
         int dstNbSamples = (int)ffmpeg.av_rescale_rnd(
             ffmpeg.swr_get_delay(swrContext, codec_ctx->sample_rate) + frame->nb_samples,
-            outSampleRate,       // 注意这里是目标采样率
+            outSampleRate,       // 目标采样率
             codec_ctx->sample_rate,
-            AVRounding.AV_ROUND_UP);
+            AVRounding.AV_ROUND_PASS_MINMAX);
 
         int bytesPerSample = ffmpeg.av_get_bytes_per_sample(outSampleFmt);
         int channels = codec_ctx->ch_layout.nb_channels;
@@ -145,6 +145,16 @@ public unsafe class AudioResampler : IDisposable
                 frame->extended_data,
                 frame->nb_samples      // 输入采样数
             );
+
+            int outDelay = ffmpeg.swr_get_out_samples(swrContext, 0);
+            if (outDelay > 0)
+            {
+                UnityEngine.Debug.LogWarning($"Audio resampler has {outDelay} samples of delay.");
+                // 如果有延迟，可能需要调整输出缓冲区大小
+                //bufferSize = outDelay * channels * bytesPerSample;
+                //if (buffer.Length < bufferSize)
+                //    Array.Resize(ref buffer, bufferSize);
+            }
 
             if (convertedSamples < 0)
                 throw new ApplicationException("Error while converting");

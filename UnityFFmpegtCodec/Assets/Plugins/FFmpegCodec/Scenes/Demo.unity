@@ -2585,6 +2585,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Panel
       objectReference: {fileID: 0}
+    - target: {fileID: 6389212994423488460, guid: dceaa2ff0a03b1044a708d93627700e0, type: 3}
+      propertyPath: url
+      value: D:\VideoTest\Save\luping.mp4
+      objectReference: {fileID: 0}
     - target: {fileID: 9055971715916308123, guid: dceaa2ff0a03b1044a708d93627700e0, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
