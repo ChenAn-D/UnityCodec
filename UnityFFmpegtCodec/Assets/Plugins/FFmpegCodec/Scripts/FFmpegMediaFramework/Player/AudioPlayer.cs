@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class AudioPlayer : MonoBehaviour
 {
@@ -10,6 +11,10 @@ public class AudioPlayer : MonoBehaviour
     private readonly Queue<float> queue = new Queue<float>();
     private object lockObj = new object();
 
+    private int position = 0;
+    private int samplerate = 44100; // 默认采样率
+    private float frequency = 440;
+
     public void Start()
     {
         if (audioSource == null)
@@ -18,8 +23,6 @@ public class AudioPlayer : MonoBehaviour
         }
         audioSource.Play();
     }
-
-
 
     public void PushAudio(byte[] pcmBuffer, int bytesPerSample, int channels, int sampleRate, bool isFloatFormat)
     {
@@ -37,12 +40,12 @@ public class AudioPlayer : MonoBehaviour
             // 直接复制 float PCM
             Buffer.BlockCopy(pcmBuffer, 0, floatBuffer, 0, pcmBuffer.Length);
         }
-        else if (!isFloatFormat && bytesPerSample == 2)
+        else if (!isFloatFormat && bytesPerSample == 4)
         {
             // int16 PCM 转换为 float [-1, 1]
             for (int i = 0; i < sampleCount; i++)
             {
-                short sample = (short)(pcmBuffer[i * 2] | (pcmBuffer[i * 2 + 1] << 8));
+                short sample = (short)(pcmBuffer[i * 4] | (pcmBuffer[i * 4 + 1] << 8));
                 floatBuffer[i] = sample / 32768f;
             }
         }
@@ -53,8 +56,26 @@ public class AudioPlayer : MonoBehaviour
 
         lock (lockObj)
         {
+
+            //OnAudioRead(ref floatBuffer, sampleRate);
             foreach (var s in floatBuffer)
+            {
                 queue.Enqueue(s);
+
+            }
+        }
+    }
+
+    void OnAudioRead(ref float[] data, int sampleRate)
+    {
+        int count = 0;
+        position = 0;
+        while (count < data.Length)
+        {
+            float x0 = data[count];
+            data[count] = Mathf.Sin(2 * Mathf.PI * frequency * x0 / sampleRate);
+            position++;
+            count++;
         }
     }
 
@@ -136,12 +157,16 @@ public class AudioPlayer : MonoBehaviour
         {
             throw new NotSupportedException("不支持的 PCM 格式");
         }
-        audioSource.Stop();
-        // 创建或更新 AudioClip
-        if (clip == null) clip = AudioClip.Create("DecodedAudio", sampleCount / channels, channels, sampleRate, false);
-        clip.SetData(floatBuffer, 0);
-        // 播放
-        audioSource.clip = clip;
+        //audioSource.Stop();
+        //// 创建或更新 AudioClip
+        if (clip == null)
+        {
+            clip = AudioClip.Create("DecodedAudio", sampleCount / channels, channels, sampleRate, false);
+            // 播放
+            audioSource.clip = clip;
+        }
+        clip?.SetData(floatBuffer, 0);
         audioSource.Play();
     }
 }
+

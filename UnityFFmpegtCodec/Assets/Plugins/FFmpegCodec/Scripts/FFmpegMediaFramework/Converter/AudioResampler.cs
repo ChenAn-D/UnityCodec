@@ -1,14 +1,15 @@
 using FFmpeg.AutoGen;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
+using System.Runtime.InteropServices;
+using UnityEngine.LightTransport;
 
 public unsafe class AudioResampler : IDisposable
 {
     private SwrContext* swrContext;
-    private AVSampleFormat outSampleFmt;
-    private int outSampleRate;
-    private long outChannelLayout;
+    private AVSampleFormat outSampleFmt; //采样格式
+    private int outSampleRate; //采样率
+    private long outChannelLayout; //通道布局
     private int outChannels;
 
     private byte** convertedData;
@@ -34,6 +35,8 @@ public unsafe class AudioResampler : IDisposable
         if (swrContext == null)
             throw new ApplicationException("Could not allocate SwrContext");
 
+        UnityEngine.Debug.Log(codecpar->format);
+
         var _swrContext = swrContext;
         ffmpeg.swr_alloc_set_opts2(
              &_swrContext,
@@ -47,9 +50,16 @@ public unsafe class AudioResampler : IDisposable
              null
          );
 
+
+        ////采样次数  //获取给定音频参数所需的缓冲区大小。
+        //var BitsPerSample = ffmpeg.av_samples_get_buffer_size(null, 2, codecpar->frame_size, AVSampleFormat.AV_SAMPLE_FMT_S16, 1);
+        ////创建一个指针
+        //audioBuffer = Marshal.AllocHGlobal((int)BitsPerSample);
+
         int ret = ffmpeg.swr_init(swrContext);
         if (ret < 0)
             throw new ApplicationException($"Failed to initialize the resampling context: {ret}");
+
     }
 
     /*
@@ -108,7 +118,6 @@ public unsafe class AudioResampler : IDisposable
      }
    */
 
-
     private byte[] buffer;
     private int bufferLength;
     // 假设 swrCtx 已经用 ffmpeg.swr_alloc_set_opts2 初始化为目标格式
@@ -118,12 +127,25 @@ public unsafe class AudioResampler : IDisposable
             ffmpeg.swr_get_delay(swrContext, codec_ctx->sample_rate) + frame->nb_samples,
             outSampleRate,       // 目标采样率
             codec_ctx->sample_rate,
-            AVRounding.AV_ROUND_PASS_MINMAX);
+            AVRounding.AV_ROUND_UP);
 
         int bytesPerSample = ffmpeg.av_get_bytes_per_sample(outSampleFmt);
-        int channels = codec_ctx->ch_layout.nb_channels;
+        //int channels = codec_ctx->ch_layout.nb_channels;
+        int channels = outChannels;
 
         int bufferSize = dstNbSamples * channels * bytesPerSample;
+
+        //UnityEngine.Debug.Log("原始音频帧采样率: " + frame->sample_rate); // 44100
+        //UnityEngine.Debug.Log("原始音频帧采样格式: " + (AVSampleFormat)frame->format); // AV_SAMPLE_FMT_FLTP
+        //UnityEngine.Debug.Log("原始音频帧通道数: " + frame->ch_layout.nb_channels); //2
+        //UnityEngine.Debug.Log("每帧采样点数: " + frame->nb_samples); //1024
+
+        int is_planar = ffmpeg.av_sample_fmt_is_planar(codec_ctx->sample_fmt);
+        if (is_planar <= 0)
+        {
+            UnityEngine.Debug.LogWarning("Audio resampler does not support planar format, please use packed format.");
+            throw new NotSupportedException("Audio resampler does not support planar format, please use packed format.");
+        }
 
         if (buffer == null || buffer.Length < bufferSize)
             buffer = new byte[bufferSize];
@@ -132,7 +154,7 @@ public unsafe class AudioResampler : IDisposable
         {
             // 创建多声道指针数组
             byte** dstData = stackalloc byte*[channels];
-
+            //dstData[0] = dstPtr;
             for (int i = 0; i < channels; i++)
             {
                 dstData[i] = dstPtr + i * bytesPerSample * dstNbSamples;
@@ -165,7 +187,46 @@ public unsafe class AudioResampler : IDisposable
         outputBuffer = buffer;
     }
 
+    //缓冲区指针
+    IntPtr audioBuffer;
+    /// <summary>
+    /// 将音频帧转换成字节数组
+    /// </summary>
+    /// <param name="sourceFrame"></param>
+    /// <returns></returns>
+    public void FrameConvertBytes(AVFrame* sourceFrame, out byte[] outputBuffer)
+    {
+        int dstNbSamples = (int)ffmpeg.av_rescale_rnd(
+            ffmpeg.swr_get_delay(swrContext, sourceFrame->sample_rate) + sourceFrame->nb_samples,
+            outSampleRate,       // 目标采样率
+            sourceFrame->sample_rate,
+            AVRounding.AV_ROUND_UP);
 
+        int bytesPerSample = ffmpeg.av_get_bytes_per_sample(outSampleFmt);
+        int channels = outChannels;
+
+        int bufferSize = dstNbSamples * channels * bytesPerSample;
+
+
+        if (buffer == null || buffer.Length < bufferSize)
+            buffer = new byte[bufferSize];
+
+        fixed (byte* dstPtr = buffer)
+        {
+
+            //重采样音频
+            var outputSamplesPerChannel = ffmpeg.swr_convert(swrContext, &dstPtr, outSampleRate, sourceFrame->extended_data, sourceFrame->nb_samples);
+        }
+
+        outputBuffer = buffer;
+
+        //清除缓存
+        if (audioBuffer != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(audioBuffer);
+            audioBuffer = IntPtr.Zero;
+        }
+    }
 
     public void Dispose()
     {

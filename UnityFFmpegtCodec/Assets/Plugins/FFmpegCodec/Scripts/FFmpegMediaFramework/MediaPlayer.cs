@@ -297,6 +297,7 @@ public class MediaPlayer : IDisposable
                         if (_audioResampler != null)
                         {
                             _audioResampler.Convert(decodedFrame, _audioDecoder.CodecContext, out byte[] buffer);
+                            //_audioResampler.FrameConvertBytes(decodedFrame, out byte[] buffer);
                             OnAudioFrame?.Invoke(buffer);
                         }
                     }
